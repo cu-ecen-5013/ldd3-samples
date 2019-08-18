@@ -32,6 +32,12 @@
 
 #include "scull.h"        /* local definitions */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h> /* struct signal_struct */
+#endif
+
+
 static dev_t scull_a_firstdev;  /* Where our range begins */
 
 /*

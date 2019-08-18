@@ -30,7 +30,7 @@
 #include <linux/cdev.h>
 
 //#include <asm/system.h>		/* cli(), *_flags */
-#include <asm/uaccess.h>	/* copy_*_user */
+#include <linux/uaccess.h>	/* copy_*_user */
 
 #include "scull.h"		/* local definitions */
 
