@@ -9,7 +9,7 @@ else
   DEBFLAGS = -O2
 endif
 
-CFLAGS += $(DEBFLAGS) -I$(LDDINC)
+cflags-y += $(DEBFLAGS) -I$(LDDINC)
 
 TARGET = sculld
 
