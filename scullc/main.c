@@ -15,7 +15,6 @@
  * $Id: _main.c.in,v 1.21 2004/10/14 20:11:39 corbet Exp $
  */
 
-#include <linux/config.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
@@ -27,7 +26,8 @@
 #include <linux/proc_fs.h>
 #include <linux/fcntl.h>	/* O_ACCMODE */
 #include <linux/aio.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
+#include <linux/version.h>
 #include "scullc.h"		/* local definitions */
 
 
@@ -49,7 +49,7 @@ int scullc_trim(struct scullc_dev *dev);
 void scullc_cleanup(void);
 
 /* declare one cache pointer: use it for all devices */
-kmem_cache_t *scullc_cache;
+struct kmem_cache *scullc_cache;
 
 
 
@@ -272,11 +272,12 @@ ssize_t scullc_write (struct file *filp, const char __user *buf, size_t count,
  * The ioctl() implementation
  */
 
-int scullc_ioctl (struct inode *inode, struct file *filp,
+long scullc_ioctl (struct file *filp,
                  unsigned int cmd, unsigned long arg)
 {
 
-	int err = 0, ret = 0, tmp;
+	int err = 0, tmp;
+	long ret = 0;
 
 	/* don't even decode wrong cmds: better returning  ENOTTY than EFAULT */
 	if (_IOC_TYPE(cmd) != SCULLC_IOC_MAGIC) return -ENOTTY;
@@ -401,16 +402,16 @@ loff_t scullc_llseek (struct file *filp, loff_t off, int whence)
 struct async_work {
 	struct kiocb *iocb;
 	int result;
-	struct work_struct work;
+	struct delayed_work work;
 };
 
 /*
  * "Complete" an asynchronous operation.
  */
-static void scullc_do_deferred_op(void *p)
+static void scullc_do_deferred_op(struct work_struct *work)
 {
-	struct async_work *stuff = (struct async_work *) p;
-	aio_complete(stuff->iocb, stuff->result, 0);
+	struct async_work *stuff = container_of(work,struct async_work, work);
+	stuff->iocb->ki_complete(stuff->iocb, stuff->result, 0);
 	kfree(stuff);
 }
 
@@ -437,7 +438,7 @@ static int scullc_defer_op(int write, struct kiocb *iocb, char __user *buf,
 		return result; /* No memory, just complete now */
 	stuff->iocb = iocb;
 	stuff->result = result;
-	INIT_WORK(&stuff->work, scullc_do_deferred_op, stuff);
+	INIT_DELAYED_WORK(&stuff->work, scullc_do_deferred_op);
 	schedule_delayed_work(&stuff->work, HZ/100);
 	return -EIOCBQUEUED;
 }
@@ -467,11 +468,16 @@ struct file_operations scullc_fops = {
 	.llseek =    scullc_llseek,
 	.read =	     scullc_read,
 	.write =     scullc_write,
-	.ioctl =     scullc_ioctl,
-	.open =	     scullc_open,
-	.release =   scullc_release,
+	.compat_ioctl =     scullc_ioctl,
+	.open =	     scullc_open, .release =   scullc_release,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 0, 0)
+	/**
+	 *  needs work to support 4.x.  See rewrite to use read_iter/write_iter, example at 
+	 * https://github.com/torvalds/linux/commit/f788baadbdd95b0309ab8e1565d5c425e197b8db
+	 */
 	.aio_read =  scullc_aio_read,
-	.aio_write = scullc_aio_write,
+	.aio_write = scullc_aio_write 
+#endif
 };
 
 int scullc_trim(struct scullc_dev *dev)
@@ -558,7 +564,7 @@ int scullc_init(void)
 	}
 
 	scullc_cache = kmem_cache_create("scullc", scullc_quantum,
-			0, SLAB_HWCACHE_ALIGN, NULL, NULL); /* no ctor/dtor */
+			SLAB_HWCACHE_ALIGN, 0, NULL); /* no ctor */
 	if (!scullc_cache) {
 		scullc_cleanup();
 		return -ENOMEM;
