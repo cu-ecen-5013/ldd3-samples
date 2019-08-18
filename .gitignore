@@ -1,8 +1,16 @@
 *.o
 *.order
-*.o.cmd
 */.tmp_versions/
 *.ko
 *.ko.cmd
 *.mod.c
 Module.symvers
+*.o.*
+misc-progs/dataalign
+misc-progs/datasize
+misc-progs/inp
+misc-progs/netifdebug
+misc-progs/outp
+misc-progs/setconsole
+misc-progs/setlevel
+misc-modules/SimpleHello.mk
