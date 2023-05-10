@@ -6,3 +6,11 @@
 *.ko.cmd
 *.mod.c
 Module.symvers
+
+*load50
+*mapcmp
+*mapper
+*nbtest
+*polltest
+*.mod
+
